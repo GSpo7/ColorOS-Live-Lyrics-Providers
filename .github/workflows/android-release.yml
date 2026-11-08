@@ -1,6 +1,25 @@
 name: Build v5 Provider Matrix
 
+# Builds every Provider APK and uploads them as workflow artifacts.
+#  - push / pull_request: debug build (debug-signed, no secrets needed, works on forks)
+#  - manual run: pick debug or release; release needs the signing secrets below
+#
+# Secrets (release only): SIGNING_KEY (base64 keystore), KEY_STORE_PASSWORD, ALIAS, KEY_PASSWORD
+# Repository variable (optional): LYRICS_CONTACT_EMAIL - contact email put in the User-Agent that
+# the Universal Provider sends to lrc.red (their API terms require one).
+
 on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
     inputs:
       build-type:
@@ -12,13 +31,23 @@ on:
         default: debug
         required: true
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-release:
-    name: Build and Release Apps
+  build:
+    name: Build Provider APKs
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     env:
-      BUILD_TYPE: ${{ github.event.inputs.build-type || 'release' }}
+      # Anything that is not an explicit manual "release" request builds debug.
+      BUILD_TYPE: ${{ github.event.inputs.build-type || 'debug' }}
+      LYRICS_CONTACT_EMAIL: ${{ vars.LYRICS_CONTACT_EMAIL }}
 
     steps:
       - name: Checkout Code
@@ -35,27 +64,45 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Accept Android SDK licenses
+        # compileSdk 37 is not preinstalled; AGP downloads it and needs accepted licenses.
+        run: yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
       - name: Setup Gradle with Caching
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-          cache-disabled: false
+
+      - name: Check release signing secrets
+        if: ${{ env.BUILD_TYPE == 'release' }}
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          for name in SIGNING_KEY KEY_STORE_PASSWORD ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Release build requested but secret $name is not set. Add it under Settings > Secrets and variables > Actions, or run the workflow with build-type=debug." >&2
+              exit 1
+            fi
+          done
 
       - name: Decode Keystore
-        if: ${{ github.event.inputs.build-type == 'release' || env.BUILD_TYPE == 'release' }}
-        run: |
-          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > release.jks
+        if: ${{ env.BUILD_TYPE == 'release' }}
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: printf '%s' "$SIGNING_KEY" | base64 -d > release.jks
 
       - name: Run v5 Provider tests
-        run: ./gradlew testV5Matrix --rerun-tasks
+        run: ./gradlew testV5Matrix --stacktrace
 
       - name: Build v5 Provider APKs
         run: |
           if [ "$BUILD_TYPE" = "release" ]; then
-            ./gradlew assembleV5MatrixRelease --build-cache
+            ./gradlew assembleV5MatrixRelease --build-cache --stacktrace
           else
-            ./gradlew assembleV5MatrixDebug --build-cache
+            ./gradlew assembleV5MatrixDebug --build-cache --stacktrace
           fi
         env:
           RELEASE_STORE_FILE: ../release.jks
@@ -69,9 +116,9 @@ jobs:
       - name: Build Dynamic Artwork Provider APK
         run: |
           if [ "$BUILD_TYPE" = "release" ]; then
-            ./gradlew :artwork-provider-am:assembleRelease --build-cache
+            ./gradlew :artwork-provider-am:assembleRelease --build-cache --stacktrace
           else
-            ./gradlew :artwork-provider-am:assembleDebug --build-cache
+            ./gradlew :artwork-provider-am:assembleDebug --build-cache --stacktrace
           fi
         env:
           RELEASE_STORE_FILE: ../release.jks
@@ -82,8 +129,7 @@ jobs:
       - name: Collect APKs to flat directory
         run: |
           mkdir -p collected-apks
-
-          find . -name "*.apk" -path "*/build/outputs/apk/${{ env.BUILD_TYPE }}/*" -exec cp {} collected-apks/ \;
+          find . -name "*.apk" -path "*/build/outputs/apk/${BUILD_TYPE}/*" -exec cp {} collected-apks/ \;
 
           echo "Collected files:"
           ls -lh collected-apks/
@@ -91,28 +137,25 @@ jobs:
           # The artwork-provider-am APK shares this output path layout, so the collect step
           # sees 15 files since that module was added; keep the guard as a lower bound.
           if [ "$APK_COUNT" -lt 14 ]; then
-            echo "Expected at least 14 v5 Provider APKs, found $APK_COUNT" >&2
+            echo "::error::Expected at least 14 v5 Provider APKs, found $APK_COUNT" >&2
             exit 1
           fi
 
       - name: Create Provider bundle
         run: |
           mkdir -p bundled-apks
-          if ! compgen -G "collected-apks/*.apk" > /dev/null; then
-            echo "No v5 Provider APK files found" >&2
-            exit 1
-          fi
           (cd collected-apks && zip -qr "../bundled-apks/ColorOS-Live-Lyrics-Providers-${BUILD_TYPE}.zip" ./*.apk)
           echo "Bundled files:"
           ls -lh bundled-apks/
 
+      # Plain (zipped) artifacts: upload-artifact only allows a single file with `archive: false`,
+      # so a multi-APK glob must be archived.
       - name: Upload APKs to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BUILD_TYPE }}-apks
           path: collected-apks/*.apk
           if-no-files-found: error
-          archive: false
 
       - name: Upload Provider bundle to Artifacts
         uses: actions/upload-artifact@v4
@@ -120,15 +163,6 @@ jobs:
           name: ColorOS-Live-Lyrics-Providers-${{ env.BUILD_TYPE }}-bundle
           path: bundled-apks/*.zip
           if-no-files-found: error
-          archive: false
-
-      - name: Upload Dynamic Artwork Provider to Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dynamic-artwork-provider-${{ env.BUILD_TYPE }}
-          path: artwork-provider-am/build/outputs/apk/${{ env.BUILD_TYPE }}/*.apk
-          if-no-files-found: error
-          archive: false
 
       - name: Cleanup
         if: always()

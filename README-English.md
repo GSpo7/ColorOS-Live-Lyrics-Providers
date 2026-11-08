@@ -50,7 +50,7 @@ the Bridge five-slot control according to player-specific evidence. QQ Music HD 
 
 ## Universal Player Provider
 
-Universal Player Provider (`Provider-Universal 1.1.2 (4)`) is for players without a dedicated
+Universal Player Provider (`Provider-Universal 1.2.0 (5)`) is for players without a dedicated
 adapter that still create a standard Android `MediaSession`. It has static scope only in
 `system_server` and receives an explicit target-package list from its settings app; unselected music,
 video, and other media apps are never observed, queried for lyrics, or written with `lyricInfo`.
@@ -64,6 +64,14 @@ resolves the field by name first and falls back to its type; ColorOS 16 and earl
 KuGou and KuGou Lite, NetEase Cloud Music and its Honor build) for manual selection on the Players
 page; only KuWo stays unavailable. **Enable only one Provider per player**: use either its dedicated
 Provider or the Universal Provider. With both on, each writes `lyricInfo` and they overwrite each other.
+
+1.2.0 adds two lyric sources: [lrc.red](https://lrc.red) (word- or line-synced LRC) and Better Lyrics
+(the backend of the better-lyrics browser extension, Apple word-timed TTML). Enable and reorder them on
+the Lyric source priority page; upgraded installs get them appended once (sources you removed earlier
+stay removed). Network failures and 5xx responses count as transient and are never cached as "no
+lyrics". lrc.red's API terms require a visible credit with a link (shown at the bottom of the priority
+page) and a contact email in the User-Agent: build with `-PlyricsContactEmail=you@example.com` or set
+the `LYRICS_CONTACT_EMAIL` environment variable / GitHub repository variable.
 
 After installing the APK, open **Universal Player Provider**: select target apps on the Players page,
 set lyric-source priority on Sources, and enable word timing, translations, raw lyrics, or sanitized

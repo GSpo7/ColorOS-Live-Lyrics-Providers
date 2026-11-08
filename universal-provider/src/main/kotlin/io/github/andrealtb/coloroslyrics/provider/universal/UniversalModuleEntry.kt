@@ -1205,7 +1205,7 @@ class UniversalModuleEntry : XposedModule() {
 
     private fun loadSourceConfig(): String = runCatching {
         java.io.File("/data/system/universal_source_config.json").takeIf { it.isFile }?.readText()
-    }.getOrNull() ?: LyricsSourceConfigStore.encode(listOf("QQ", "NETEASE", "APPLE_MUSIC"))
+    }.getOrNull() ?: LyricsSourceConfigStore.encode(LyricsSourceConfigStore.all)
 
     private fun persistSourceConfig(priority: List<io.github.andrealtb.coloroslyrics.provider.universal.api.LyricsSourceAggregator.SourceId>) {
         runCatching { java.io.File("/data/system/universal_source_config.json").writeText(LyricsSourceConfigStore.encode(priority.map { it.name })) }

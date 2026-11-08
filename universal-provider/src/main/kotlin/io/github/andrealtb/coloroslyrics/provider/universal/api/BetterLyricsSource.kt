@@ -8,40 +8,49 @@ import org.json.JSONObject
 class BetterLyricsSource(private val client: OkHttpClient) : LyricsSource {
     override val name: String = "better_lyrics"
 
+    /**
+     * Better Lyrics backend (the API behind the better-lyrics browser extension). 404 means the
+     * track is not in its catalog; network errors and 5xx/429 throw so the aggregator reports a
+     * transient failure instead of letting the engine cache a "no lyrics" verdict.
+     */
     override fun fetchLyrics(query: TrackQuery): LyricResult? {
-        return runCatching {
-            val urlBuilder = "https://lyrics-api.boidu.dev/getLyrics".toHttpUrl().newBuilder()
-                .addQueryParameter("s", query.title)
-                .addQueryParameter("a", query.artist)
-            query.album?.takeIf { it.isNotBlank() }?.let { urlBuilder.addQueryParameter("al", it) }
-            query.durationMs?.let { urlBuilder.addQueryParameter("d", (it / 1000).toString()) }
+        if (query.title.isBlank()) return null
+        val urlBuilder = "https://lyrics-api.boidu.dev/getLyrics".toHttpUrl().newBuilder()
+            .addQueryParameter("s", query.title)
+            .addQueryParameter("a", query.artist)
+        query.album?.takeIf { it.isNotBlank() }?.let { urlBuilder.addQueryParameter("al", it) }
+        query.durationMs?.let { urlBuilder.addQueryParameter("d", (it / 1000).toString()) }
 
-            val request = Request.Builder()
-                .url(urlBuilder.build())
-                .addHeader("User-Agent", "UniversalLyricsProvider/1.0")
-                .build()
+        val request = Request.Builder()
+            .url(urlBuilder.build())
+            .header("User-Agent", UniversalHttpIdentity.userAgent)
+            .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
+        val body = client.newCall(request).execute().use { response ->
+            if (response.code == 404) return null
+            if (!response.isSuccessful) throw java.io.IOException("better-lyrics HTTP ${response.code}")
+            response.body?.string()
+        }?.takeIf { it.isNotBlank() } ?: return null
+
+        val lrc = runCatching {
             val json = JSONObject(body)
-            val lrc = json.optString("lrc").ifBlank { json.optString("lyrics") }
+            json.optString("lrc").ifBlank { json.optString("lyrics") }
                 .ifBlank { ttmlToLrc(json.optString("ttml")) }
-            if (lrc.isBlank()) return null
-            val translation = UnisonTranslationSource(client).translate(
-                lrc,
-                java.util.Locale.getDefault().language
-            )
+        }.getOrDefault("")
+        if (lrc.isBlank()) return null
+        val translation = UnisonTranslationSource(client).translate(
+            lrc,
+            java.util.Locale.getDefault().language
+        )
 
-            LyricResult(
-                title = query.title,
-                artist = query.artist,
-                lyric = lrc,
-                rawLyric = lrc,
-                translationLyric = translation,
-                source = "universal/better_lyrics"
-            )
-        }.getOrNull()
+        return LyricResult(
+            title = query.title,
+            artist = query.artist,
+            lyric = lrc,
+            rawLyric = lrc,
+            translationLyric = translation,
+            source = "universal/better_lyrics"
+        )
     }
 
     internal fun ttmlToLrc(ttml: String): String {

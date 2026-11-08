@@ -438,6 +438,8 @@ private fun formatSourceName(context: Context, raw: String): String {
         clean.contains("qq") -> context.getString(R.string.source_qq)
         clean.contains("netease") || clean.contains("网易") -> context.getString(R.string.source_netease)
         clean.contains("apple") -> context.getString(R.string.source_apple)
+        clean.contains("lrc_red") || clean.contains("lrc.red") -> context.getString(R.string.source_lrcred)
+        clean.contains("better_lyrics") -> context.getString(R.string.source_better_lyrics)
         clean == "none" || clean == "—" -> "—"
         else -> raw.ifBlank { "—" }
     }

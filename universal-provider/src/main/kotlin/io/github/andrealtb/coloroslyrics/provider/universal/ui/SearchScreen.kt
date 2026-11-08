@@ -30,6 +30,7 @@ import io.github.andrealtb.coloroslyrics.provider.universal.NoLyricPolicy
 import io.github.andrealtb.coloroslyrics.provider.universal.R
 import io.github.andrealtb.coloroslyrics.provider.universal.UniversalSnapshotStore
 import io.github.andrealtb.coloroslyrics.provider.universal.UniversalAppNetwork
+import io.github.andrealtb.coloroslyrics.provider.universal.api.LrcRedSource
 import io.github.andrealtb.coloroslyrics.provider.universal.api.LyricsSourceAggregator
 import io.github.andrealtb.coloroslyrics.provider.universal.api.SearchCandidate
 import io.github.andrealtb.coloroslyrics.provider.universal.cache.UniversalLyricCache
@@ -72,7 +73,8 @@ fun SearchScreen(
             val qq = aggregator.qqSource.searchCandidates(kw)
             val netease = aggregator.netEaseSource.searchCandidates(kw)
             val apple = aggregator.appleMusicSource.searchCandidates(kw)
-            val combined = qq + netease + apple
+            val lrcRed = aggregator.lrcRedSource.searchCandidates(kw)
+            val combined = qq + netease + apple + lrcRed
             withContext(Dispatchers.Main) {
                 state.candidates = combined
                 state.statusText = context.getString(R.string.search_results, combined.size)
@@ -178,7 +180,8 @@ fun SearchScreen(
                 stringResource(R.string.filter_all) to null,
                 stringResource(R.string.source_qq) to "QQ音乐",
                 stringResource(R.string.source_netease) to "网易云音乐",
-                stringResource(R.string.source_apple) to "Apple Music"
+                stringResource(R.string.source_apple) to "Apple Music",
+                stringResource(R.string.source_lrcred) to LrcRedSource.SOURCE_LABEL
             ).forEach { (label, src) ->
                 val isSelected = state.selectedFilter == src
                 FilterChip(
@@ -237,6 +240,7 @@ fun SearchScreen(
                                 val source = when (item.source) {
                                     "QQ音乐" -> aggregator.qqSource
                                     "Apple Music" -> aggregator.appleMusicSource
+                                    LrcRedSource.SOURCE_LABEL -> aggregator.lrcRedSource
                                     else -> aggregator.netEaseSource
                                 }
                                 val result = source.fetchLyricByCandidate(item)

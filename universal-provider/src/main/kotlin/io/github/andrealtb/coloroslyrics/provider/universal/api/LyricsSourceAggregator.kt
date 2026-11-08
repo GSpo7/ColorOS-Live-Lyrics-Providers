@@ -19,12 +19,16 @@ class LyricsSourceAggregator(
 
     enum class SourceId {
         QQ, NETEASE,
-        APPLE_MUSIC
+        APPLE_MUSIC,
+        LRC_RED,
+        BETTER_LYRICS
     }
 
     val qqSource = QQMusicSource(client)
     val netEaseSource = NetEaseSource(client)
     val appleMusicSource = AppleMusicLyricSource(client)
+    val lrcRedSource = LrcRedSource(client)
+    val betterLyricsSource = BetterLyricsSource(client)
 
     fun fetchFirst(query: TrackQuery, priority: List<SourceId> = SourceId.values().toList()): FetchReport {
         if (priority.isEmpty()) {
@@ -44,6 +48,8 @@ class LyricsSourceAggregator(
                     SourceId.QQ -> qqSource.fetchLyrics(query)
                     SourceId.NETEASE -> netEaseSource.fetchLyrics(query)
                     SourceId.APPLE_MUSIC -> appleMusicSource.fetchLyrics(query)
+                    SourceId.LRC_RED -> lrcRedSource.fetchLyrics(query)
+                    SourceId.BETTER_LYRICS -> betterLyricsSource.fetchLyrics(query)
                 }
             }
             val elapsed = System.currentTimeMillis() - started

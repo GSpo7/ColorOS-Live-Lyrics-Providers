@@ -47,7 +47,7 @@ Metrolist 与 Spotify 不提供翻译；其余模块按各播放器证据使用�
 
 ## 通用播放器 Provider
 
-通用播放器 Provider（`Provider-Universal 1.1.2 (4)`）面向没有专属适配、但会创建标准 Android
+通用播放器 Provider（`Provider-Universal 1.2.0 (5)`）面向没有专属适配、但会创建标准 Android
 `MediaSession` 的播放器。它以静态 scope 仅运行在 `system_server`，从设置 App 同步用户明确选择的
 目标包；没有被选择的音乐、视频和其他媒体 App 不会被观察、联网取词或写入 `lyricInfo`。
 
@@ -59,6 +59,13 @@ Metrolist 与 Spotify 不提供翻译；其余模块按各播放器证据使用�
 1.1.2 放开已有专属 Provider 的官方播放器（欢太音乐、QQ 音乐、酷狗及概念版、网易云及荣耀版），
 可在“播放器”页手动选择；目前仅酷我仍不可选。**同一播放器只开一个 Provider**：它的专属 Provider
 与通用 Provider 二选一，同时开启时两者都会写入 `lyricInfo` 而互相覆盖。
+
+1.2.0 新增两个歌词源：[lrc.red](https://lrc.red)（逐字/逐行 LRC，需在构建时配置联系邮箱，见下）与
+Better Lyrics（better-lyrics 浏览器扩展所用的后端，Apple 逐字 TTML）。两者都可在“歌词源优先级”页启用、
+排序；从旧版升级时会自动追加到列表末尾（此前被你移除的源保持移除）。网络故障/5xx 记为瞬时失败，不会被
+缓存为“无歌词”。lrc.red 的 API 条款要求注明来源并附链接（优先级页底部已注明），并要求 User-Agent 带联系
+邮箱：构建时传 `-PlyricsContactEmail=you@example.com` 或设置环境变量/GitHub 仓库变量
+`LYRICS_CONTACT_EMAIL`。
 
 安装 APK 后打开 **Universal Player Provider**：在“播放器”页选择目标 App，在“来源”页调整歌词源
 优先级，并按需打开逐字、翻译、原始歌词和脱敏诊断。模块会保留宿主已有 metadata，仅向选中播放器

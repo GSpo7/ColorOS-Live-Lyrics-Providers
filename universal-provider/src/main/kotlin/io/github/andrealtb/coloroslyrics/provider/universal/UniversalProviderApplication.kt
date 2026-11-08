@@ -14,6 +14,8 @@ class UniversalProviderApplication : Application() {
         super.onCreate()
         instance = this
         UniversalAppIo.execute {
+            // Upgraded installs gain the new lyric sources once; best effort, never fatal.
+            runCatching { LyricsSourceConfigStore.migrateAndPublish(this) }
             StructuredDiagnostics.configure(
                 debugEnabled = getSharedPreferences(UniversalSettingsConstants.PREFS_NAME, Context.MODE_PRIVATE)
                     .getBoolean(UniversalSettingsConstants.KEY_DEBUG, false)

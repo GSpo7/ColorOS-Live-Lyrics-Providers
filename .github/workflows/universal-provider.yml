@@ -1,0 +1,90 @@
+name: Build Universal Provider
+
+# Fast path for iterating on the Universal Player Provider only: runs its unit tests and uploads
+# a debug-signed APK as an artifact (Actions run page -> Artifacts). No secrets required.
+#
+# Optional repository variable: LYRICS_CONTACT_EMAIL - contact email placed in the User-Agent
+# sent to lrc.red (their API terms require one). Settings > Secrets and variables > Actions > Variables.
+
+on:
+  push:
+    paths:
+      - 'universal-provider/**'
+      - 'provider-core/**'
+      - 'parser-*/**'
+      - 'provider-hook-api102/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/universal-provider.yml'
+  pull_request:
+    paths:
+      - 'universal-provider/**'
+      - 'provider-core/**'
+      - 'parser-*/**'
+      - 'provider-hook-api102/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/universal-provider.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and build Universal Provider (debug)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      LYRICS_CONTACT_EMAIL: ${{ vars.LYRICS_CONTACT_EMAIL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Accept Android SDK licenses
+        run: yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Unit tests
+        run: ./gradlew :universal-provider:testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew :universal-provider:assembleDebug --stacktrace
+
+      - name: Name the APK
+        id: apk
+        run: |
+          set -e
+          src=$(ls universal-provider/build/outputs/apk/debug/*.apk | head -n 1)
+          version=$(grep -oP 'versionName = "\K[^"]+' universal-provider/build.gradle.kts | head -n 1)
+          mkdir -p dist
+          cp "$src" "dist/ColorOS-Live-Lyrics-Provider-Universal-v${version}-debug.apk"
+          ls -lh dist
+
+      - name: Upload Universal Provider APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-provider-debug
+          path: dist/*.apk
+          if-no-files-found: error

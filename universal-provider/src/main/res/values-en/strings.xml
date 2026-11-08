@@ -34,6 +34,10 @@
     <string name="source_qq">QQ Music</string>
     <string name="source_netease">NetEase Cloud Music</string>
     <string name="source_apple">Apple Music</string>
+    <string name="source_lrcred">lrc.red</string>
+    <string name="source_better_lyrics">Better Lyrics</string>
+    <string name="lrcred_credit">credit: lrc.red</string>
+    <string name="lrcred_attribution">Some lyrics are provided by lrc.red (https://lrc.red)</string>
     <string name="language_switched_en">Switched to English</string>
     <string name="language_switched_zh">Switched to Chinese</string>
     <string name="action_language">Language</string>

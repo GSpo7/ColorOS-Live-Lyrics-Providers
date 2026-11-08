@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,13 +41,19 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PriorityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val labels = remember { mapOf("QQ" to "QQ 音乐", "NETEASE" to "网易云音乐", "APPLE_MUSIC" to "Apple Music") }
+    val labels = remember {
+        mapOf(
+            "QQ" to "QQ 音乐", "NETEASE" to "网易云音乐", "APPLE_MUSIC" to "Apple Music",
+            "LRC_RED" to "lrc.red", "BETTER_LYRICS" to "Better Lyrics"
+        )
+    }
+    val uriHandler = LocalUriHandler.current
     var sourceList by remember { mutableStateOf<List<String>>(emptyList()) }
     val enabledMap = remember { mutableStateMapOf<String, Boolean>() }
     var settingsLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val configured = withContext(UniversalAppIo.dispatcher) { LyricsSourceConfigStore.read(context) }
-        val all = mutableListOf("QQ", "NETEASE", "APPLE_MUSIC")
+        val all = LyricsSourceConfigStore.all.toMutableList()
         all.sortBy { configured.indexOf(it).let { index -> if (index < 0) Int.MAX_VALUE else index } }
         all.forEach { enabledMap[it] = it in configured }
         sourceList = all
@@ -59,6 +68,7 @@ fun PriorityScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
     ) {
         TopAppBar(
@@ -137,7 +147,8 @@ fun PriorityScreen(onBack: () -> Unit) {
                         },
                         supportingContent = {
                             Text(
-                                stringResource(if (id == "APPLE_MUSIC") R.string.priority_line else R.string.priority_word, index + 1),
+                                stringResource(if (id == "APPLE_MUSIC") R.string.priority_line else R.string.priority_word, index + 1) +
+                                    if (id == "LRC_RED") " · " + stringResource(R.string.lrcred_credit) else "",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -161,7 +172,12 @@ fun PriorityScreen(onBack: () -> Unit) {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // lrc.red's terms require a visible credit and link wherever its lyrics are used.
+        TextButton(onClick = { runCatching { uriHandler.openUri("https://lrc.red") } }) {
+            Text(stringResource(R.string.lrcred_attribution), style = MaterialTheme.typography.bodySmall)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Button(
             enabled = settingsLoaded,
@@ -170,19 +186,7 @@ fun PriorityScreen(onBack: () -> Unit) {
                 val appContext = context.applicationContext
                 UniversalAppIo.execute {
                     LyricsSourceConfigStore.write(appContext, selected)
-                    val prefs = appContext.getSharedPreferences(UniversalSettingsConstants.PREFS_NAME, Context.MODE_PRIVATE)
-                    appContext.sendBroadcast(Intent(UniversalSnapshotStore.ACTION_UPDATE_SOURCE_CONFIG).apply {
-                        addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                        putExtra(UniversalSnapshotStore.EXTRA_SOURCE_PRIORITY, LyricsSourceConfigStore.encode(selected))
-                        putExtra(UniversalSnapshotStore.EXTRA_WORD_TIMING_ENABLED, prefs.getBoolean(UniversalSettingsConstants.KEY_WORD_TIMING, false))
-                        putExtra(UniversalSnapshotStore.EXTRA_TRANSLATION_ENABLED, prefs.getBoolean(UniversalSettingsConstants.KEY_TRANSLATION, true))
-                        putExtra(UniversalSnapshotStore.EXTRA_RAW_LYRIC_ENABLED, prefs.getBoolean(UniversalSettingsConstants.KEY_RAW_LYRIC, true))
-                        putExtra(UniversalSnapshotStore.EXTRA_DEBUG_ENABLED, prefs.getBoolean(UniversalSettingsConstants.KEY_DEBUG, false))
-                        putExtra(
-                            UniversalSnapshotStore.EXTRA_CLOCK_LINE_FALLBACK_ENABLED,
-                            prefs.getBoolean(UniversalSettingsConstants.KEY_CLOCK_LINE_FALLBACK, true)
-                        )
-                    })
+                    LyricsSourceConfigStore.publish(appContext, selected)
                 }
                 Toast.makeText(context, context.getString(R.string.toast_priority_saved), Toast.LENGTH_SHORT).show()
                 onBack()

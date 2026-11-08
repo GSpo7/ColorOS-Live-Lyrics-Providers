@@ -34,6 +34,10 @@
     <string name="source_qq">QQ音乐</string>
     <string name="source_netease">网易云音乐</string>
     <string name="source_apple">Apple Music</string>
+    <string name="source_lrcred">lrc.red</string>
+    <string name="source_better_lyrics">Better Lyrics</string>
+    <string name="lrcred_credit">来源：lrc.red</string>
+    <string name="lrcred_attribution">部分歌词由 lrc.red 提供（https://lrc.red）</string>
     <string name="language_switched_en">已切换为 English</string>
     <string name="language_switched_zh">已切换为 中文</string>
     <string name="action_language">切换语言</string>

@@ -17,9 +17,15 @@ configure<ApplicationExtension> {
         applicationId = "io.github.andrealtb.coloroslyrics.provider.universal"
         minSdk = 27
         targetSdk = rootProject.extra.get("targetSdkVersion") as Int
-        versionCode = 4
-        versionName = "1.1.2"
+        versionCode = 5
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // lrc.red requires the User-Agent to carry a contact email. Never committed: set
+        // -PlyricsContactEmail=... locally or the LYRICS_CONTACT_EMAIL variable/secret in CI.
+        val contactEmail = (project.findProperty("lyricsContactEmail") as String?)
+            ?: System.getenv("LYRICS_CONTACT_EMAIL")
+            ?: ""
+        buildConfigField("String", "LYRICS_CONTACT_EMAIL", "\"${contactEmail.trim().replace("\"", "")}\"")
     }
 
     signingConfigs {
